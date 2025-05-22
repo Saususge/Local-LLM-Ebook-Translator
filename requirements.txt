@@ -1,0 +1,9 @@
+langchain==0.3.25
+langchain-ollama==0.3.3
+langchain-core==0.3.60
+ebooklib==0.18
+beautifulsoup4==4.12.2
+pdfplumber==0.10.3
+nltk==3.8.1
+python-dotenv==1.0.0
+PyQt5==5.15.9
