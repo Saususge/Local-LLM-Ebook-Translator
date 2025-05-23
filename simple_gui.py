@@ -11,7 +11,7 @@ from ebook_parser import EbookParser
 from translator import EbookTranslator
 
 class TranslationWorker(QThread):
-    """번역 작업을 위한 워커 스레드"""
+    """Worker thread for translation tasks"""
     progress_updated = pyqtSignal(int, int)
     translation_complete = pyqtSignal(dict)
     error_occurred = pyqtSignal(str)
@@ -30,16 +30,16 @@ class TranslationWorker(QThread):
     
     def run(self):
         try:
-            # Ebook 파서 초기화
+            # Initialize Ebook parser
             parser = EbookParser()
             
-            # 파일 파싱
+            # Parse file
             chapters = parser.parse_ebook(self.input_file)
             
             if not self.is_running:
                 return
             
-            # 번역기 초기화
+            # Initialize translator
             translator = EbookTranslator(
                 model_name=self.model_name,
                 target_language=self.target_lang,
@@ -47,14 +47,14 @@ class TranslationWorker(QThread):
                 base_url=self.server_url
             )
             
-            # 번역 콜백 함수
+            # Translation callback function
             def update_progress(current, total):
                 if not self.is_running:
-                    return False  # 중지 신호
+                    return False  # Stop signal
                 self.progress_updated.emit(current, total)
-                return True  # 계속 진행
+                return True  # Continue
             
-            # 번역 실행
+            # Execute translation
             translated_chapters = translator.translate_chapters(chapters, callback=update_progress)
             
             if self.is_running:
@@ -65,11 +65,11 @@ class TranslationWorker(QThread):
 
 
 class EbookTranslatorApp(QMainWindow):
-    """이북 번역기 메인 애플리케이션 창"""
+    """Ebook translator main application window"""
     
     def __init__(self):
         super().__init__()
-        self.ui_language = "ko"  # 기본 UI 언어
+        self.ui_language = "ko"  # Default UI language
         self.translated_content = None
         self.worker = None
         
@@ -80,16 +80,16 @@ class EbookTranslatorApp(QMainWindow):
         self.log(LanguageResources.get(self.ui_language, "download_model"))
     
     def init_ui(self):
-        """UI 초기화"""
+        """Initialize UI"""
         self.setWindowTitle(LanguageResources.get(self.ui_language, "app_title"))
         self.setGeometry(100, 100, 900, 700)
         
-        # 메인 위젯과 레이아웃
+        # Main widget and layout
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
         main_layout = QVBoxLayout(central_widget)
         
-        # 서버 설정 그룹
+        # Server settings group
         server_group = QGroupBox(LanguageResources.get(self.ui_language, "server_settings"))
         server_layout = QHBoxLayout()
         
@@ -101,7 +101,7 @@ class EbookTranslatorApp(QMainWindow):
         server_group.setLayout(server_layout)
         main_layout.addWidget(server_group)
         
-        # 모델 설정 그룹
+        # Model settings group
         model_group = QGroupBox(LanguageResources.get(self.ui_language, "model_settings"))
         model_layout = QGridLayout()
         
@@ -127,7 +127,7 @@ class EbookTranslatorApp(QMainWindow):
         model_group.setLayout(model_layout)
         main_layout.addWidget(model_group)
         
-        # 파일 선택 그룹
+        # File selection group
         file_group = QGroupBox(LanguageResources.get(self.ui_language, "input_file"))
         file_layout = QHBoxLayout()
         
@@ -140,7 +140,7 @@ class EbookTranslatorApp(QMainWindow):
         file_group.setLayout(file_layout)
         main_layout.addWidget(file_group)
         
-        # 출력 파일 그룹
+        # Output file group
         output_group = QGroupBox(LanguageResources.get(self.ui_language, "output_file"))
         output_layout = QHBoxLayout()
         
@@ -153,7 +153,7 @@ class EbookTranslatorApp(QMainWindow):
         output_group.setLayout(output_layout)
         main_layout.addWidget(output_group)
         
-        # 번역 제어 버튼
+        # Translation control buttons
         btn_layout = QHBoxLayout()
         
         self.start_btn = QPushButton(LanguageResources.get(self.ui_language, "start_translation"))
@@ -169,20 +169,20 @@ class EbookTranslatorApp(QMainWindow):
         
         main_layout.addLayout(btn_layout)
         
-        # 진행 상황 표시줄
+        # Progress bar
         self.progress_bar = QProgressBar()
         self.progress_bar.setValue(0)
         main_layout.addWidget(self.progress_bar)
         
-        # 탭 위젯 (로그 및 번역 샘플)
+        # Tab widget (log and translation sample)
         self.tab_widget = QTabWidget()
         
-        # 로그 탭
+        # Log tab
         self.log_edit = QTextEdit()
         self.log_edit.setReadOnly(True)
         self.tab_widget.addTab(self.log_edit, LanguageResources.get(self.ui_language, "log_tab"))
         
-        # 번역 샘플 탭
+        # Translation sample tab
         translation_widget = QWidget()
         translation_layout = QVBoxLayout(translation_widget)
         
@@ -205,13 +205,13 @@ class EbookTranslatorApp(QMainWindow):
         
         main_layout.addWidget(self.tab_widget)
         
-        # 상태 표시줄
+        # Status bar
         self.statusBar = QStatusBar()
         self.setStatusBar(self.statusBar)
         self.statusBar.showMessage(LanguageResources.get(self.ui_language, "waiting"))
     
     def setup_connections(self):
-        """이벤트 연결 설정"""
+        """Set up event connections"""
         self.input_file_btn.clicked.connect(self.select_input_file)
         self.output_file_btn.clicked.connect(self.select_output_file)
         self.start_btn.clicked.connect(self.start_translation)
@@ -219,7 +219,7 @@ class EbookTranslatorApp(QMainWindow):
         self.save_btn.clicked.connect(self.save_translation)
     
     def select_input_file(self):
-        """입력 파일 선택"""
+        """Select input file"""
         file_dialog = QFileDialog()
         file_path, _ = file_dialog.getOpenFileName(
             self,
@@ -232,12 +232,12 @@ class EbookTranslatorApp(QMainWindow):
             self.input_file_edit.setText(file_path)
             self.log(f"{LanguageResources.get(self.ui_language, 'file_selected')}: {file_path}")
             
-            # 기본 출력 파일 이름 설정
+            # Set default output file name
             base_name = os.path.splitext(file_path)[0]
             self.output_file_edit.setText(f"{base_name}_translated.txt")
     
     def select_output_file(self):
-        """출력 파일 선택"""
+        """Select output file"""
         file_dialog = QFileDialog()
         file_path, _ = file_dialog.getSaveFileName(
             self,
@@ -251,7 +251,7 @@ class EbookTranslatorApp(QMainWindow):
             self.log(f"{LanguageResources.get(self.ui_language, 'output_selected')}: {file_path}")
     
     def start_translation(self):
-        """번역 시작"""
+        """Start translation"""
         input_file = self.input_file_edit.text()
         if not input_file:
             QMessageBox.warning(
@@ -269,28 +269,28 @@ class EbookTranslatorApp(QMainWindow):
         self.log(f"{LanguageResources.get(self.ui_language, 'translation_started')}")
         self.log(f"{LanguageResources.get(self.ui_language, 'parsing_file')}")
         
-        # 워커 스레드 생성
+        # Create worker thread
         self.worker = TranslationWorker(
             input_file, model_name, source_lang, target_lang, server_url
         )
         
-        # 시그널 연결
+        # Connect signals
         self.worker.progress_updated.connect(self.update_progress)
         self.worker.translation_complete.connect(self.translation_completed)
         self.worker.error_occurred.connect(self.handle_error)
         
-        # UI 업데이트
+        # Update UI
         self.start_btn.setEnabled(False)
         self.stop_btn.setEnabled(True)
         self.save_btn.setEnabled(False)
         self.progress_bar.setValue(0)
         self.statusBar().showMessage(LanguageResources.get(self.ui_language, "translating_with").format(model_name))
         
-        # 워커 시작
+        # Start worker
         self.worker.start()
     
     def stop_translation(self):
-        """번역 중지"""
+        """Stop translation"""
         if self.worker and self.worker.isRunning():
             self.log(LanguageResources.get(self.ui_language, "stop_requested"))
             self.statusBar().showMessage(LanguageResources.get(self.ui_language, "stop_requested"))
@@ -304,24 +304,24 @@ class EbookTranslatorApp(QMainWindow):
     
     @pyqtSlot(int, int)
     def update_progress(self, current, total):
-        """번역 진행 상황 업데이트"""
+        """Update translation progress"""
         progress = int((current / total) * 100)
         self.progress_bar.setValue(progress)
         self.statusBar().showMessage(f"{LanguageResources.get(self.ui_language, 'translating_chunk')} {current}/{total}")
     
     @pyqtSlot(dict)
     def translation_completed(self, translated_chapters):
-        """번역 완료 처리"""
+        """Handle translation completion"""
         self.translated_content = translated_chapters
         self.log(LanguageResources.get(self.ui_language, "translation_completed"))
         self.statusBar().showMessage(LanguageResources.get(self.ui_language, "translation_completed"))
         
-        # UI 업데이트
+        # Update UI
         self.start_btn.setEnabled(True)
         self.stop_btn.setEnabled(False)
         self.save_btn.setEnabled(True)
         
-        # 샘플 업데이트
+        # Update sample
         if translated_chapters:
             chapter_id = next(iter(translated_chapters))
             original_text = ""
@@ -336,7 +336,7 @@ class EbookTranslatorApp(QMainWindow):
     
     @pyqtSlot(str)
     def handle_error(self, error_msg):
-        """오류 처리"""
+        """Handle errors"""
         self.log(f"{LanguageResources.get(self.ui_language, 'error')}: {error_msg}")
         self.statusBar().showMessage(f"{LanguageResources.get(self.ui_language, 'error_occurred')}: {error_msg}")
         self.start_btn.setEnabled(True)
@@ -344,7 +344,7 @@ class EbookTranslatorApp(QMainWindow):
         QMessageBox.critical(self, LanguageResources.get(self.ui_language, "error"), error_msg)
     
     def save_translation(self):
-        """번역 결과 저장"""
+        """Save translation results"""
         if not self.translated_content:
             QMessageBox.warning(
                 self,
@@ -365,7 +365,7 @@ class EbookTranslatorApp(QMainWindow):
         try:
             with open(output_file, 'w', encoding='utf-8') as f:
                 for chapter_id, translated_text in self.translated_content.items():
-                    f.write(f"--- 챕터 ID: {chapter_id} ---\n\n")
+                    f.write(f"--- Chapter ID: {chapter_id} ---\n\n")
                     f.write(translated_text)
                     f.write("\n\n")
             
@@ -385,11 +385,11 @@ class EbookTranslatorApp(QMainWindow):
             )
     
     def log(self, message):
-        """로그 메시지 추가"""
+        """Add log message"""
         self.log_edit.append(message)
     
     def closeEvent(self, event):
-        """창 닫기 이벤트 핸들러"""
+        """Window close event handler"""
         if self.worker and self.worker.isRunning():
             reply = QMessageBox.question(
                 self,

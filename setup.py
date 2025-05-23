@@ -3,30 +3,30 @@ import nltk
 import sys
 from PyInstaller.__main__ import run
 
-# NLTK 데이터 다운로드 (패키징에 포함하기 위함)
+# Download NLTK data (for packaging)
 nltk.download('punkt')
 
-# 다운로드된 NLTK 데이터 경로 확인
-# 먼저 AppData/Roaming 경로 확인
+# Check the path of downloaded NLTK data
+# First check AppData/Roaming path
 nltk_data_path = os.path.join(os.path.expanduser('~'), 'AppData', 'Roaming', 'nltk_data')
 
-# 파일 존재 여부 확인
+# Check if file exists
 if not os.path.exists(os.path.join(nltk_data_path, 'tokenizers', 'punkt')):
-    # 없으면 두 번째 가능한 경로 확인
+    # If not, check second possible path
     nltk_data_path = os.path.join(os.path.expanduser('~'), 'nltk_data')
     if not os.path.exists(os.path.join(nltk_data_path, 'tokenizers', 'punkt')):
-        # 그래도 없으면 현재 디렉토리에 다운로드
+        # If still not found, download to current directory
         nltk_data_path = os.path.abspath('nltk_data')
         os.makedirs(os.path.join(nltk_data_path, 'tokenizers'), exist_ok=True)
         nltk.download('punkt', download_dir=nltk_data_path)
 
-# PyInstaller 옵션
+# PyInstaller options
 pyinstaller_args = [
-    'run_gui.py',                    # 메인 스크립트
-    '--name=LocalLLMEbookTranslator',  # 출력 파일명
-    '--onefile',                     # 단일 EXE 파일로 패키징
-    '--windowed',                    # 콘솔 창 숨기기
-    '--clean',                       # 임시 파일 정리
+    'run_gui.py',                    # Main script
+    '--name=LocalLLMEbookTranslator',  # Output filename
+    '--onefile',                     # Package as single EXE file
+    '--windowed',                    # Hide console window
+    '--clean',                       # Clean temporary files
     '--hidden-import=nltk',
     '--hidden-import=nltk.tokenize',
     '--hidden-import=nltk.tokenize.punkt',
@@ -43,17 +43,17 @@ pyinstaller_args = [
 
 ]
 
-# NLTK 데이터 추가
+# Add NLTK data
 if os.path.exists(os.path.join(nltk_data_path, 'tokenizers', 'punkt')):
     punkt_path = os.path.join(nltk_data_path, 'tokenizers', 'punkt')
     pyinstaller_args.append(f'--add-data={punkt_path};nltk_data/tokenizers/punkt')
-    print(f"NLTK 데이터 경로: {punkt_path}")
+    print(f"NLTK data path: {punkt_path}")
 else:
-    print("경고: NLTK punkt 데이터를 찾을 수 없습니다!")
+    print("Warning: NLTK punkt data not found!")
 
-# 아이콘 관련 코드 제거 - 아이콘 파일이 유효하지 않아 오류 발생
+# Icon-related code removed - icon file was invalid causing errors
 
-# PyInstaller 실행
-print("PyInstaller 빌드 시작...")
+# Run PyInstaller
+print("Starting PyInstaller build...")
 run(pyinstaller_args)
-print("PyInstaller 빌드 완료!")
+print("PyInstaller build completed!")
