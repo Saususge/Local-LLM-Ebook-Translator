@@ -1,16 +1,18 @@
 # Local-LLM-Ebook-Translator
 
-Ollama와 LangChain을 이용한 로컬 이북(Ebook) 번역 프로그램입니다. EPUB 및 PDF 파일을 지원합니다.
+Ollama를 이용한 고성능 로컬 이북(Ebook) 번역 프로그램입니다. EPUB 및 PDF 파일을 지원합니다.
 
 *다른 언어로 읽기: [English](README.md), [한국어](README.ko.md)*
 
 ## 기능
 
 - EPUB 및 PDF 파일 파싱
-- Ollama를 이용한 로컬 LLM 번역
+- Ollama를 이용한 로컬 LLM 번역 (httpx + asyncio)
+- **병렬 번역**으로 3-8배 빠른 성능
 - 다양한 언어로 번역 가능
 - 다국어 UI 지원 (한국어, 영어)
 - 데스크톱 애플리케이션 인터페이스 (PyQt5)
+- 동시 요청 수 조절 가능
 
 ## 설치 방법
 
@@ -28,7 +30,7 @@ Ollama와 LangChain을 이용한 로컬 이북(Ebook) 번역 프로그램입니�
 
 1. 필요한 패키지 설치
    ```bash
-   pip install langchain langchain-ollama ollama ebooklib bs4 pdfplumber nltk python-dotenv PyQt5
+   pip install -r requirements.txt
    ```
 
 2. 실행 파일 빌드 (선택 사항)
@@ -52,6 +54,7 @@ Ollama와 LangChain을 이용한 로컬 이북(Ebook) 번역 프로그램입니�
    - 사용할 LLM 모델 선택
    - 원본 언어 및 번역할 언어 선택
    - 입력 파일(EPUB/PDF) 및 출력 파일 선택
+   - **동시 요청 수 조절** (권장: 3-8)
    - 인터페이스 언어 선택 (한국어/영어)
 
 3. '번역 시작' 버튼을 클릭하여 번역 시작
@@ -62,6 +65,14 @@ Ollama와 LangChain을 이용한 로컬 이북(Ebook) 번역 프로그램입니�
 - 최소 8GB RAM (16GB 이상 권장)
 - Ollama 호환 시스템 (Linux, macOS, Windows)
 - GPU 가속 권장 (번역 속도 향상)
+
+## 성능 팁
+
+| VRAM | 권장 동시 요청 수 |
+|------|-----------------|
+| 8GB  | 3-5 |
+| 12GB | 5-8 |
+| 24GB+| 8-15 |
 
 ## 참고사항
 

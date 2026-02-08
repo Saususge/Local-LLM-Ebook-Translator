@@ -3,15 +3,15 @@ import os
 import time
 import threading
 import requests
-from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, 
+from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, 
                             QLabel, QComboBox, QLineEdit, QPushButton, QFileDialog, 
                             QProgressBar, QTextEdit, QGroupBox, QFormLayout, QMessageBox,
-                            QSpinBox, QCheckBox, QTabWidget, QSplitter, QMenuBar, QMenu, QAction)
-from PyQt5.QtCore import Qt, QThread, pyqtSignal, pyqtSlot, QSettings
-from PyQt5.QtGui import QFont, QIcon
+                            QSpinBox, QCheckBox, QTabWidget, QSplitter, QMenuBar, QMenu)
+from PySide6.QtCore import Qt, QThread, Signal, Slot, QSettings
+from PySide6.QtGui import QFont, QIcon, QAction
 
 from ebook_parser import EbookParser
-from translator import EbookTranslator
+from async_translator import SyncTranslatorWrapper
 from language import LanguageResources
 
 try:
@@ -21,13 +21,13 @@ except ImportError:
 
 class TranslationWorker(QThread):
     """Worker class that executes translation tasks in a separate thread"""
-    progress_updated = pyqtSignal(int, int)  # current, total
-    status_updated = pyqtSignal(str)
-    translation_done = pyqtSignal(dict)
-    error_occurred = pyqtSignal(str)
-    sample_updated = pyqtSignal(str, str)  # source text, translated text
+    progress_updated = Signal(int, int)  # current, total
+    status_updated = Signal(str)
+    translation_done = Signal(dict)
+    error_occurred = Signal(str)
+    sample_updated = Signal(str, str)  # source text, translated text
     
-    def __init__(self, file_path, model_name, source_lang, target_lang, server_url=None, ui_lang="ko"):
+    def __init__(self, file_path, model_name, source_lang, target_lang, server_url=None, ui_lang="ko", max_concurrent=5):
         super().__init__()
         self.file_path = file_path
         self.model_name = model_name
@@ -36,6 +36,8 @@ class TranslationWorker(QThread):
         self.server_url = server_url
         self.stop_requested = False
         self.ui_lang = ui_lang
+        self.max_concurrent = max_concurrent
+        self.translator = None
         
     def run(self):
         try:
@@ -45,43 +47,61 @@ class TranslationWorker(QThread):
             chapters = parser.parse_ebook(self.file_path)
             self.status_updated.emit(f"{len(chapters)} {LanguageResources.get(self.ui_lang, 'chunks_parsed')}.")
             
-            # Initialize translator
-            kwargs = {"model_name": self.model_name, "target_language": self.target_lang}
-            if self.server_url:
-                kwargs["base_url"] = self.server_url
-                
-            translator = EbookTranslator(**kwargs)
+            # Initialize async translator with concurrency control
+            self.translator = SyncTranslatorWrapper(
+                model_name=self.model_name,
+                target_language=self.target_lang,
+                source_language=self.source_lang,
+                base_url=self.server_url,
+                max_concurrent=self.max_concurrent
+            )
+            # Store original file path for EPUB saving
+            self.translator.last_parsed_file = self.file_path
             
-            # Start translation
-            self.status_updated.emit(f"{self.model_name} {LanguageResources.get(self.ui_lang, 'translating_with')}")
-            translated_chapters = {}
+            # Start translation with progress callback
+            self.status_updated.emit(f"{self.model_name} (동시 {self.max_concurrent}개) {LanguageResources.get(self.ui_lang, 'translating_with')}")
             
-            for i, (chapter_id, content) in enumerate(chapters):
+            first_sample_shown = False
+            
+            def progress_callback(current, total):
+                nonlocal first_sample_shown
                 if self.stop_requested:
-                    self.status_updated.emit(LanguageResources.get(self.ui_lang, "translation_stopped"))
+                    self.translator.request_cancel()
                     return
+                self.progress_updated.emit(current, total)
+                self.status_updated.emit(f"{LanguageResources.get(self.ui_lang, 'translating_chunk')} {current}/{total}...")
                 
-                # Update progress
-                self.progress_updated.emit(i + 1, len(chapters))
-                self.status_updated.emit(f"{LanguageResources.get(self.ui_lang, 'translating_chunk')} {i+1}/{len(chapters)}...")
-                
-                # Translate
-                translated_text = translator.translate_text(content)
-                translated_chapters[chapter_id] = translated_text
-                
-                # Display first chunk as sample
-                if i == 0:
-                    self.sample_updated.emit(content[:500] + "...", translated_text[:500] + "...")
+                # Show first chunk as sample
+                if not first_sample_shown and current == 1:
+                    first_sample_shown = True
+                    if chapters:
+                        self.sample_updated.emit(chapters[0][1][:500] + "...", "번역 중...")
+            
+            # Run parallel translation
+            translated_chapters = self.translator.translate_chapters(chapters, callback=progress_callback)
+            
+            if self.stop_requested:
+                self.status_updated.emit(LanguageResources.get(self.ui_lang, "translation_stopped"))
+                return
+            
+            # Update sample with actual translation
+            if chapters and chapters[0][0] in translated_chapters:
+                first_translated = translated_chapters[chapters[0][0]]
+                self.sample_updated.emit(chapters[0][1][:500] + "...", first_translated[:500] + "...")
             
             # Translation completed
             self.status_updated.emit(LanguageResources.get(self.ui_lang, "translation_completed"))
             self.translation_done.emit(translated_chapters)
             
         except Exception as e:
-            self.error_occurred.emit(f"{LanguageResources.get(self.ui_lang, 'error_occurred')}: {str(e)}")
+            import traceback
+            error_detail = f"{LanguageResources.get(self.ui_lang, 'error_occurred')}: {str(e)}\n{traceback.format_exc()}"
+            self.error_occurred.emit(error_detail)
             
     def stop(self):
         self.stop_requested = True
+        if self.translator:
+            self.translator.request_cancel()
         self.status_updated.emit(LanguageResources.get(self.ui_lang, "stop_requested"))
 
 
@@ -133,7 +153,7 @@ class EbookTranslatorApp(QMainWindow):
     def load_ollama_models(self):
         """Ollama 모델 목록을 콤보박스에 로드"""
         # 기본 모델 목록
-        default_models = ["gemma3:12b-it-qat", "llama3", "mistral", "mixtral", "phi3"]
+        default_models = ["gemma3:4b-it-qat", "gemma3:12b-it-qat", "llama3", "mistral", "mixtral", "phi3"]
         
         # 현재 선택된 모델 저장
         current_model = self.model_combo.currentText()
@@ -196,7 +216,7 @@ class EbookTranslatorApp(QMainWindow):
         
         # 모델 선택 콤보박스
         self.model_combo = QComboBox()
-        self.model_combo.addItems(["gemma3:12b-it-qat", "llama3", "mistral", "mixtral", "phi3"])
+        self.model_combo.addItems(["gemma3:4b-it-qat", "gemma3:12b-it-qat", "llama3", "mistral", "mixtral", "phi3"])
         model_select_layout.addWidget(self.model_combo)
         
         # 새로고침 버튼
@@ -208,6 +228,17 @@ class EbookTranslatorApp(QMainWindow):
         model_select_layout.addWidget(self.refresh_models_btn)
         
         model_form.addRow(LanguageResources.get(self.ui_language, "model_selection"), model_select_layout)
+        
+        # 동시성 설정 (병렬 요청 수)
+        concurrency_layout = QHBoxLayout()
+        self.concurrency_spin = QSpinBox()
+        self.concurrency_spin.setRange(1, 20)
+        self.concurrency_spin.setValue(5)
+        self.concurrency_spin.setToolTip("동시에 처리할 번역 요청 수 (GPU 메모리에 따라 조절)")
+        concurrency_layout.addWidget(self.concurrency_spin)
+        concurrency_layout.addWidget(QLabel("(권장: 3-8)"))
+        model_form.addRow("동시 요청 수:", concurrency_layout)
+        
         self.model_group.setLayout(model_form)
         server_model_layout.addWidget(self.model_group)
         
@@ -420,7 +451,8 @@ class EbookTranslatorApp(QMainWindow):
             self.source_lang_combo.currentText(),
             self.target_lang_combo.currentText(),
             self.server_url.text() if self.server_url.text() else None,
-            self.ui_language
+            self.ui_language,
+            self.concurrency_spin.value()  # 동시성 설정
         )
         
         # Connect signals
@@ -449,7 +481,9 @@ class EbookTranslatorApp(QMainWindow):
             
         output_path = self.output_file_path.text()
         try:
-            translator = EbookTranslator()  # 임시 인스턴스
+            # 새 비동기 번역기 사용
+            translator = SyncTranslatorWrapper()
+            translator.last_parsed_file = self.input_file_path.text()
             translator.save_translation(self.translated_result, output_path)
             self.log(f"{LanguageResources.get(self.ui_language, 'saved_to')}: {output_path}")
             QMessageBox.information(
@@ -465,20 +499,20 @@ class EbookTranslatorApp(QMainWindow):
                 f"{LanguageResources.get(self.ui_language, 'save_error_msg')}.\n{str(e)}"
             )
             
-    @pyqtSlot(int, int)
+    @Slot(int, int)
     def update_progress(self, current, total):
         """Update progress status"""
         progress_percent = int((current / total) * 100)
         self.progress_bar.setValue(progress_percent)
         self.progress_label.setText(f"{LanguageResources.get(self.ui_language, 'translation_progress')} {current}/{total} ({progress_percent}%)")
         
-    @pyqtSlot(str)
+    @Slot(str)
     def update_status(self, status):
         """Update status message"""
         self.statusBar().showMessage(status)
         self.log(status)
         
-    @pyqtSlot(dict)
+    @Slot(dict)
     def handle_translation_done(self, translated_chapters):
         """Handle translation completion"""
         self.translated_result = translated_chapters
@@ -487,7 +521,7 @@ class EbookTranslatorApp(QMainWindow):
         self.save_btn.setEnabled(True)
         self.log(LanguageResources.get(self.ui_language, "translation_completed"))
         
-    @pyqtSlot(str)
+    @Slot(str)
     def handle_error(self, error_msg):
         """Handle errors"""
         self.log(f"{LanguageResources.get(self.ui_language, 'error')}: {error_msg}")
@@ -496,7 +530,7 @@ class EbookTranslatorApp(QMainWindow):
         self.stop_btn.setEnabled(False)
         QMessageBox.critical(self, LanguageResources.get(self.ui_language, "error"), error_msg)
         
-    @pyqtSlot(str, str)
+    @Slot(str, str)
     def update_sample(self, source, target):
         """Update translation sample"""
         self.source_sample.setText(source)
@@ -623,4 +657,4 @@ if __name__ == "__main__":
     app = QApplication(sys.argv)
     translator_app = EbookTranslatorApp()
     translator_app.show()
-    sys.exit(app.exec_())
+    sys.exit(app.exec())

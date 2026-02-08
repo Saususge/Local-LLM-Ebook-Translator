@@ -1,9 +1,9 @@
-from PyQt5.QtWidgets import (QMainWindow, QLabel, QLineEdit, QPushButton, 
+from PySide6.QtWidgets import (QMainWindow, QLabel, QLineEdit, QPushButton, 
                              QFileDialog, QComboBox, QTextEdit, QVBoxLayout, 
                              QHBoxLayout, QWidget, QMessageBox, QProgressBar,
                              QStatusBar, QTabWidget, QGridLayout, QGroupBox)
-from PyQt5.QtCore import Qt, QThread, pyqtSignal, pyqtSlot
-from PyQt5.QtGui import QFont
+from PySide6.QtCore import Qt, QThread, Signal, Slot
+from PySide6.QtGui import QFont
 import os
 import sys
 from language import LanguageResources
@@ -12,9 +12,9 @@ from translator import EbookTranslator
 
 class TranslationWorker(QThread):
     """Worker thread for translation tasks"""
-    progress_updated = pyqtSignal(int, int)
-    translation_complete = pyqtSignal(dict)
-    error_occurred = pyqtSignal(str)
+    progress_updated = Signal(int, int)
+    translation_complete = Signal(dict)
+    error_occurred = Signal(str)
     
     def __init__(self, input_file, model_name, source_lang, target_lang, server_url):
         super().__init__()
@@ -302,14 +302,14 @@ class EbookTranslatorApp(QMainWindow):
         self.start_btn.setEnabled(True)
         self.stop_btn.setEnabled(False)
     
-    @pyqtSlot(int, int)
+    @Slot(int, int)
     def update_progress(self, current, total):
         """Update translation progress"""
         progress = int((current / total) * 100)
         self.progress_bar.setValue(progress)
         self.statusBar().showMessage(f"{LanguageResources.get(self.ui_language, 'translating_chunk')} {current}/{total}")
     
-    @pyqtSlot(dict)
+    @Slot(dict)
     def translation_completed(self, translated_chapters):
         """Handle translation completion"""
         self.translated_content = translated_chapters
@@ -334,7 +334,7 @@ class EbookTranslatorApp(QMainWindow):
             self.source_sample_edit.setText(original_text)
             self.target_sample_edit.setText(translated_text)
     
-    @pyqtSlot(str)
+    @Slot(str)
     def handle_error(self, error_msg):
         """Handle errors"""
         self.log(f"{LanguageResources.get(self.ui_language, 'error')}: {error_msg}")

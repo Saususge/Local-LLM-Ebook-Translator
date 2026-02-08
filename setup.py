@@ -34,12 +34,8 @@ pyinstaller_args = [
     '--hidden-import=bs4',
     '--hidden-import=pdfplumber',
     '--hidden-import=PyQt5',
-    '--hidden-import=langchain',
-    '--hidden-import=langchain_ollama',
-    '--hidden-import=langchain.prompts',
-    '--hidden-import=langchain.chains',
-    '--hidden-import=langchain_ollama',
-    '--hidden-import=langchain_ollama.chat_models',
+    '--hidden-import=httpx',
+    '--hidden-import=async_translator',
 
 ]
 
